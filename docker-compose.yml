@@ -1,0 +1,36 @@
+services:
+  broker:
+    image: eclipse-mosquitto:latest
+    container_name: modt-broker
+    volumes:
+      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./broker/data:/mosquitto/data
+      - ./broker/log:/mosquitto/log
+    networks:
+      - modt-network
+
+  monitor:
+    build: ./monitor
+    container_name: modt-monitor
+    depends_on:
+      - broker
+    networks:
+      - modt-network
+    environment:
+      - MODT_BROKER_HOST=broker
+
+  dummy-app:
+      build: ./dummy-app-unit
+      container_name: modt-dummy-app
+      depends_on:
+        - broker
+      networks:
+        - modt-network
+      ports:
+        - "5001:5000"
+      environment:
+        - MODT_BROKER_HOST=broker
+
+networks:
+  modt-network:
+    driver: bridge
