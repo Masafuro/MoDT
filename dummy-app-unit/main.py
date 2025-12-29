@@ -23,17 +23,27 @@ def on_message(client, userdata, msg):
     print(f"Received message on topic: {msg.topic}")
     try:
         payload = msg.payload.decode('utf-8')
-        print(f"Raw payload: {payload}")
         data = json.loads(payload)
         last_authorized_user = data
-        print(f"User {data.get('user_id')} recognized and welcomed.")
+        user_id = data.get('user_id')
+        print(f"User {user_id} recognized and welcomed.")
+
+        # 応答メッセージ（リダイレクト先情報）のパブリッシュ
+        response_topic = "modt/app/ready"
+        response_payload = {
+            "app_name": "dummy-app",
+            "redirect_url": "http://localhost:5001/",
+            "user_id": user_id
+        }
+        client.publish(response_topic, json.dumps(response_payload))
+        print(f"Published redirect info to {response_topic}")
+
     except Exception as e:
         print(f"Error processing message: {e}")
 
 # MQTTクライアントの設定と実行（スレッド用）
 def run_mqtt():
     broker_host = os.getenv("MODT_BROKER_HOST", "broker")
-    # Paho MQTT v2.x に対応した記述（APIバージョンを明示）
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
