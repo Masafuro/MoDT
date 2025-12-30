@@ -1,4 +1,4 @@
-# MoDT (Modularized Docker-compose Toolkit)
+# MoDT (Modular Docker through MQTT)
 
 MQTTを基盤とし、Dockerコンテナによる疎結合な連携を実現するアプリケーションフレームワークです。各機能が独立したユニットとして存在し、メッセージングを通じて動的に組み合わさるシステムを目指しています。
 
