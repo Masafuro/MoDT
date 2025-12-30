@@ -16,6 +16,8 @@ services:
       - broker
     networks:
       - modt-network
+    volumes:
+      - ./common:/app/common
     environment:
       - MODT_BROKER_HOST=broker
       - PYTHONUNBUFFERED=1
@@ -29,6 +31,8 @@ services:
       - modt-network
     ports:
       - "5001:5000"
+    volumes:
+      - ./common:/app/common
     environment:
       - MODT_BROKER_HOST=broker
       - PYTHONUNBUFFERED=1
@@ -54,6 +58,8 @@ services:
       - broker
     ports:
       - "8080:80"
+    volumes:
+      - ./common:/app/common
     environment:
       - DATABASE_URL=postgresql://modt_admin:password123@identify-db:5432/identify_db
       - MQTT_BROKER_HOST=broker

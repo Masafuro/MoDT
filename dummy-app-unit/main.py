@@ -1,49 +1,37 @@
-import os
-import json
-import paho.mqtt.client as mqtt
-from flask import Flask
+from flask import Flask, render_template
+from common import modt
 
 app = Flask(__name__)
-MQTT_HOST = os.getenv("MODT_BROKER_HOST", "broker")
 
 def on_message(client, userdata, msg):
-    try:
-        # identify-appからの認証成功イベントを受信
-        if msg.topic == "modt/auth/success":
-            data = json.loads(msg.payload.decode())
-            user_id = data.get("user_id")
-            session_id = data.get("session_id")
-            
-            print(f"Received auth success for user: {user_id}, session: {session_id}", flush=True)
+    if msg.topic == "modt/auth/success":
+        data, error = modt.parse_payload(msg.payload.decode())
+        if error:
+            print(f"Payload error: {error}", flush=True)
+            return
 
-            # 規格に基づいた返信メッセージの作成
-            response_payload = {
-                "app_name": "dummy-app",
-                "redirect_url": "http://localhost:5001/",
-                "session_id": session_id
-            }
+        user_id = data.get("user_id")
+        session_id = data.get("session_id")
+        print(f"Auth success received for user: {user_id}", flush=True)
 
-            # 準備完了を通知
-            client.publish("modt/app/ready", json.dumps(response_payload))
-            print(f"Published standard redirect info for session: {session_id}", flush=True)
+        payload = modt.create_app_ready_payload(
+            app_name="dummy-app",
+            redirect_url="http://localhost:5001/",
+            session_id=session_id
+        )
+        client.publish("modt/app/ready", payload)
+        print(f"Redirect signal sent via SDK for session: {session_id}", flush=True)
 
-    except Exception as e:
-        print(f"Error in dummy-app MQTT process: {e}", flush=True)
-
-# MQTTクライアントの設定
-try:
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-except AttributeError:
-    mqtt_client = mqtt.Client()
-
+# SDKを利用したMQTTセットアップ
+mqtt_client = modt.get_mqtt_client()
 mqtt_client.on_message = on_message
-mqtt_client.connect(MQTT_HOST, 1883, 60)
+modt.connect_broker(mqtt_client)
 mqtt_client.subscribe("modt/auth/success")
-mqtt_client.loop_start()
 
 @app.route("/")
 def index():
-    return "<h1>Welcome to Dummy App Unit</h1><p>これはダミーアプリケーションの画面です。</p>"
+    # 文字列を直接返す代わりに、templates/index.html を描画して返します
+    return render_template("index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
