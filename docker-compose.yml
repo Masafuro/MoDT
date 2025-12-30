@@ -18,19 +18,52 @@ services:
       - modt-network
     environment:
       - MODT_BROKER_HOST=broker
+      - PYTHONUNBUFFERED=1
 
   dummy-app:
-      build: ./dummy-app-unit
-      container_name: modt-dummy-app
-      depends_on:
-        - broker
-      networks:
-        - modt-network
-      ports:
-        - "5001:5000"
-      environment:
-        - MODT_BROKER_HOST=broker
+    build: ./dummy-app-unit
+    container_name: modt-dummy-app
+    depends_on:
+      - broker
+    networks:
+      - modt-network
+    ports:
+      - "5001:5000"
+    environment:
+      - MODT_BROKER_HOST=broker
+      - PYTHONUNBUFFERED=1
+
+  identify-db:
+    image: postgres:15-alpine
+    container_name: identify-db
+    environment:
+      POSTGRES_DB: identify_db
+      POSTGRES_USER: modt_admin
+      POSTGRES_PASSWORD: password123
+    volumes:
+      - ./identify-unit/db/init:/docker-entrypoint-initdb.d
+      - identify-db-data:/var/lib/postgresql/data
+    networks:
+      - modt-network
+
+  identify-app:
+    build: ./identify-unit/src
+    container_name: identify-app
+    depends_on:
+      - identify-db
+      - broker
+    ports:
+      - "8080:80"
+    environment:
+      - DATABASE_URL=postgresql://modt_admin:password123@identify-db:5432/identify_db
+      - MQTT_BROKER_HOST=broker
+      - PYTHONUNBUFFERED=1
+    networks:
+      - modt-network
 
 networks:
   modt-network:
     driver: bridge
+
+volumes:
+  identify-db-data:

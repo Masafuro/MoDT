@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>MoDT - 準備中</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
+        .loader { border: 16px solid #f3f3f3; border-top: 16px solid #3498db; border-radius: 50%; width: 120px; height: 120px; animation: spin 2s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <h1>アプリケーションを準備しています...</h1>
+    <p>セッションID: <span id="session-id">{{ session_id }}</span></p>
+    <p>準備が整い次第、自動的に移動します。</p>
+
+    <script>
+        const sessionId = document.getElementById('session-id').innerText;
+        // WebSocketのプロトコルを動的に決定（httpならws、httpsならwss）
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/${sessionId}`;
+        const socket = new WebSocket(wsUrl);
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.ready) {
+                // 準備が整ったという通知を受け取ったらリダイレクト
+                window.location.href = data.url;
+            }
+        };
+
+        socket.onclose = function() {
+            console.log("WebSocketが切断されました。再接続を試みるか、画面を更新してください。");
+        };
+
+        socket.onerror = function(error) {
+            console.error("WebSocketエラーが発生しました:", error);
+        };
+    </script>
+</body>
+</html>

@@ -1,76 +1,49 @@
 import os
 import json
-import threading
-from flask import Flask, render_template_string
 import paho.mqtt.client as mqtt
+from flask import Flask
 
 app = Flask(__name__)
+MQTT_HOST = os.getenv("MODT_BROKER_HOST", "broker")
 
-# 認証済みユーザー情報を保持するメモリ領域
-last_authorized_user = None
-
-# 接続成功時のコールバック
-def on_connect(client, userdata, flags, rc, properties=None):
-    if rc == 0:
-        print("Connected to MQTT Broker successfully.")
-        client.subscribe("modt/auth/success")
-    else:
-        print(f"Failed to connect, return code {rc}")
-
-# MQTTメッセージ受信時のコールバック
 def on_message(client, userdata, msg):
-    global last_authorized_user
-    print(f"Received message on topic: {msg.topic}")
     try:
-        payload = msg.payload.decode('utf-8')
-        data = json.loads(payload)
-        last_authorized_user = data
-        user_id = data.get('user_id')
-        print(f"User {user_id} recognized and welcomed.")
+        # identify-appからの認証成功イベントを受信
+        if msg.topic == "modt/auth/success":
+            data = json.loads(msg.payload.decode())
+            user_id = data.get("user_id")
+            session_id = data.get("session_id")
+            
+            print(f"Received auth success for user: {user_id}, session: {session_id}", flush=True)
 
-        # 応答メッセージ（リダイレクト先情報）のパブリッシュ
-        response_topic = "modt/app/ready"
-        response_payload = {
-            "app_name": "dummy-app",
-            "redirect_url": "http://localhost:5001/",
-            "user_id": user_id
-        }
-        client.publish(response_topic, json.dumps(response_payload))
-        print(f"Published redirect info to {response_topic}")
+            # 規格に基づいた返信メッセージの作成
+            response_payload = {
+                "app_name": "dummy-app",
+                "redirect_url": "http://localhost:5001/",
+                "session_id": session_id
+            }
+
+            # 準備完了を通知
+            client.publish("modt/app/ready", json.dumps(response_payload))
+            print(f"Published standard redirect info for session: {session_id}", flush=True)
 
     except Exception as e:
-        print(f"Error processing message: {e}")
+        print(f"Error in dummy-app MQTT process: {e}", flush=True)
 
-# MQTTクライアントの設定と実行（スレッド用）
-def run_mqtt():
-    broker_host = os.getenv("MODT_BROKER_HOST", "broker")
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    print(f"Attempting to connect to broker at {broker_host}...")
-    try:
-        client.connect(broker_host, 1883, 60)
-        client.loop_forever()
-    except Exception as e:
-        print(f"MQTT Connection Error: {e}")
+# MQTTクライアントの設定
+try:
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+except AttributeError:
+    mqtt_client = mqtt.Client()
 
-@app.route('/')
-def home():
-    if last_authorized_user:
-        return render_template_string("""
-            <h1>Welcome to MoDT Ecosystem</h1>
-            <p>Status: <strong>Active (Authenticated)</strong></p>
-            <ul>
-                <li>User ID: {{ user.user_id }}</li>
-                <li>Role: {{ user.role }}</li>
-                <li>Session: {{ user.session_id }}</li>
-            </ul>
-        """, user=last_authorized_user)
-    else:
-        return "<h1>MoDT App Waiting...</h1><p>Status: Waiting for authentication signal.</p>"
+mqtt_client.on_message = on_message
+mqtt_client.connect(MQTT_HOST, 1883, 60)
+mqtt_client.subscribe("modt/auth/success")
+mqtt_client.loop_start()
 
-if __name__ == '__main__':
-    mqtt_thread = threading.Thread(target=run_mqtt, daemon=True)
-    mqtt_thread.start()
-    app.run(host='0.0.0.0', port=5000)
+@app.route("/")
+def index():
+    return "<h1>Welcome to Dummy App Unit</h1><p>これはダミーアプリケーションの画面です。</p>"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
