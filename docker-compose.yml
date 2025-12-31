@@ -18,6 +18,24 @@ services:
       - modt-network
     volumes:
       - ./common:/app/common
+    environment:
+      - PYTHONPATH=/app/common
+    env_file:
+      - .env
+
+  db-unit:
+    build: ./db-unit
+    container_name: modt-db-unit
+    depends_on:
+      - broker
+    networks:
+      - modt-network
+    volumes:
+      - ./db-unit/data:/app/data
+      - ./common:/app/common
+    environment:
+      - PYTHONPATH=/app/common
+      - MODT_BROKER_HOST=broker
     env_file:
       - .env
 
@@ -32,6 +50,8 @@ services:
       - "${DUMMY_APP_EXTERNAL_PORT}:${DUMMY_APP_INTERNAL_PORT}"
     volumes:
       - ./common:/app/common
+    environment:
+      - PYTHONPATH=/app/common
     env_file:
       - .env
 
@@ -56,6 +76,8 @@ services:
       - "${IDENTIFY_EXTERNAL_PORT}:${IDENTIFY_INTERNAL_PORT}"
     volumes:
       - ./common:/app/common
+    environment:
+      - PYTHONPATH=/app/common
     env_file:
       - .env
       - ./identify-unit/.env

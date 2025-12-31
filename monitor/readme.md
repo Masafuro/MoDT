@@ -19,3 +19,40 @@ docker exec -it modt-monitor redis-cli lrange modt:logs 0 -1
 開発の過程で蓄積されたログを一度リセットし、まっさらな状態からテストをやり直したい場合は、以下のコマンドを実行してRedis内の該当するキーを削除してください。これにより、古いデータに惑わされることなく新しい検証を行うことができます。
 
 docker exec -it modt-monitor redis-cli del modt:logs
+
+
+# MoDT システム開発用 SDK コマンドリスト (PowerShell版)
+
+このドキュメントは、Dockerコンテナ内で動作するMQTTブローカー（modt-broker）を通じて、システムの各ユニットに対して手動でメッセージを送信・監視するためのリファレンスです。PowerShell環境においてJSONのダブルクォーテーションを正しく解釈させるため、バックティック（`）によるエスケープを施しています。
+
+---
+
+## 1. システム全体のリアルタイム監視 (MONITOR)
+
+デバッグ時には、まず新しいターミナルを開き、以下のコマンドを実行して全てのメッセージの流れを可視化してください。トピック名と内容がリアルタイムで表示されます。
+
+docker exec -it modt-broker mosquitto_sub -t "modt/#" -v
+
+---
+
+## 2. ユーザー状態の保存 (SET)
+
+特定のユーザー（例: user001）に対して、キーと値のペアを保存するコマンドです。データベースユニット（db-unit）はこのメッセージを受け取り、SQLiteへ内容を書き込みます。
+
+docker exec -it modt-broker mosquitto_pub -t "modt/state/set" -m "{\`"user_id\`": \`"user001\`", \`"key\`": \`"theme\`", \`"value\`": \`"dark\`", \`"timestamp\`": \`"2025-12-31T16:00:00\`"}"
+
+---
+
+## 3. ユーザー状態の取得 (GET)
+
+保存されている値を呼び出すためのリクエストコマンドです。このメッセージを送信した後、監視用ターミナルで返信用トピック（modt/state/value）に結果が流れるのを確認してください。
+
+docker exec -it modt-broker mosquitto_pub -t "modt/state/get" -m "{\`"user_id\`": \`"user001\`", \`"key\`": \`"theme\`", \`"timestamp\`": \`"2025-12-31T16:00:00\`"}"
+
+---
+
+## 4. ユーザー保有キーの一覧照会 (KEYS QUERY)
+
+対象のユーザーが現在どのような設定項目を持っているかを一括で確認したい場合に使用します。
+
+docker exec -it modt-broker mosquitto_pub -t "modt/state/keys/query" -m "{\`"user_id\`": \`"user001\`", \`"timestamp\`": \`"2025-12-31T16:00:00\`"}"

@@ -1,0 +1,21 @@
+# 軽量なPython 3.11イメージを使用
+FROM python:3.11-slim
+
+# 作業ディレクトリの設定
+WORKDIR /app
+
+# 依存ライブラリのインストール
+RUN pip install --no-cache-dir paho-mqtt
+
+# プログラム本体のみをコピー（modt.pyはdocker-composeでマウントするため不要）
+COPY main.py .
+
+# データベースファイルを保存するディレクトリを作成
+RUN mkdir /app/data
+
+# 環境変数のデフォルト値（docker-compose側で上書き可能）
+ENV MODT_BROKER_HOST=broker
+ENV MODT_BROKER_PORT=1883
+
+# アプリケーションの実行
+CMD ["python", "main.py"]
