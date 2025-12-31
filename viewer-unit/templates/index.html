@@ -3,48 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoDT Data Viewer</title>
+    <title>MoDT Data Manager</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f8f9fa; }
-        .viewer-card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; width: 90%; border-top: 5px solid #34a853; }
-        h1 { color: #202124; font-size: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
-        .data-section { margin-bottom: 1.5rem; text-align: left; }
-        .label { font-size: 0.85rem; color: #70757a; margin-bottom: 0.25rem; display: block; }
-        .value { font-family: 'Courier New', Courier, monospace; background: #f1f3f4; padding: 0.75rem; border-radius: 6px; color: #3c4043; word-break: break-all; display: block; font-size: 0.95rem; }
-        .status-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-top: 1rem; }
-        .status-valid { background-color: #e6f4ea; color: #1e8e3e; }
-        .no-data { color: #d93025; font-style: italic; }
-        .back-link { display: inline-block; margin-top: 2rem; color: #1a73e8; text-decoration: none; font-size: 0.9rem; }
-        .back-link:hover { text-decoration: underline; }
+        .viewer-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 600px; width: 95%; border-top: 5px solid #34a853; }
+        h1 { color: #202124; font-size: 1.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+        .info-box { background: #f1f3f4; padding: 0.8rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem; color: #5f6368; }
+        
+        /* テーブルのスタイル */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #e0e0e0; font-size: 0.9rem; }
+        th { background-color: #f8f9fa; color: #70757a; font-weight: 600; }
+        .key-cell { font-family: monospace; color: #1a73e8; font-weight: bold; }
+        .no-data { text-align: center; color: #dadce0; padding: 2rem; }
+
+        /* フォームのスタイル */
+        .edit-form { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .form-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 1rem; color: #3c4043; display: block; }
+        .input-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .input-field { flex: 1; min-width: 120px; padding: 0.6rem; border: 1px solid #dadce0; border-radius: 4px; font-size: 0.9rem; }
+        .save-btn { background-color: #34a853; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .save-btn:hover { background-color: #2d9249; }
+
+        .back-link { display: inline-block; margin-top: 1.5rem; color: #1a73e8; text-decoration: none; font-size: 0.85rem; }
     </style>
 </head>
 <body>
     <div class="viewer-card">
-        <h1>システムデータ閲覧</h1>
+        <h1>ユーザーデータ管理コンソール</h1>
         
-        <div class="data-section">
-            <span class="label">現在のセッションID</span>
-            <span class="value">{{ session_id }}</span>
+        <div class="info-box">
+            ユーザーID: {{ user_id }}<br>
+            セッション: {{ session_id }}
         </div>
 
-        <div class="data-section">
-            <span class="label">照会されたユーザーID</span>
-            <span class="value">{{ user_id }}</span>
-        </div>
-
-        <div class="data-section">
-            <span class="label">取得された設定 (Key: theme)</span>
-            <span class="value">
-                {% if theme %}
-                    {{ theme }}
+        <table>
+            <thead>
+                <tr>
+                    <th>設定キー</th>
+                    <th>現在の値</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if states and states.items() %}
+                    {% for key, val in states.items() %}
+                    <tr>
+                        <td class="key-cell">{{ key }}</td>
+                        <td>{{ val }}</td>
+                    </tr>
+                    {% endfor %}
                 {% else %}
-                    <span class="no-data">未設定 (db-unitにデータがありません)</span>
+                    <tr>
+                        <td colspan="2" class="no-data">登録されているデータはありません</td>
+                    </tr>
                 {% endif %}
-            </span>
-        </div>
+            </tbody>
+        </table>
 
-        <div class="status-badge status-valid">
-            連携ステータス: 正常動作中
+        <div class="edit-form">
+            <span class="form-title">新しい設定を登録・更新する</span>
+            <form action="/update-data" method="POST">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                <div class="input-group">
+                    <input type="text" name="new_key" placeholder="キー名 (例: lang)" class="input-field" required>
+                    <input type="text" name="new_value" placeholder="値 (例: ja)" class="input-field" required>
+                    <button type="submit" class="save-btn">登録</button>
+                </div>
+            </form>
         </div>
 
         <div style="text-align: center;">

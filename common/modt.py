@@ -21,6 +21,10 @@ TOPIC_STATE_VAL = "modt/state/value"
 TOPIC_STATE_KEYS_QUERY = "modt/state/keys/query"
 TOPIC_STATE_KEYS_LIST = "modt/state/keys/list"
 
+# 新設：全件取得用のトピック
+TOPIC_STATE_ALL_GET = "modt/state/all/get"
+TOPIC_STATE_ALL_VAL = "modt/state/all/value"
+
 def get_mqtt_client(client_id=""):
     """Paho MQTTのバージョン差異を吸収してクライアントオブジェクトを生成します。"""
     try:
@@ -62,75 +66,39 @@ def _create_base_payload(extra_data):
     payload.update(extra_data)
     return json.dumps(payload)
 
-# 認証・セッション関連のペイロード生成関数
+# 既存のペイロード生成関数（省略せずに維持してください）
 def create_auth_success_payload(user_id, session_id, role="user"):
-    """認証成功時のメッセージペイロードを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "session_id": session_id,
-        "role": role
-    })
+    return _create_base_payload({"user_id": user_id, "session_id": session_id, "role": role})
 
 def create_app_ready_payload(app_name, redirect_url, session_id):
-    """アプリケーションの準備完了を知らせるメッセージペイロードを生成します。"""
-    return _create_base_payload({
-        "app_name": app_name,
-        "redirect_url": redirect_url,
-        "session_id": session_id
-    })
+    return _create_base_payload({"app_name": app_name, "redirect_url": redirect_url, "session_id": session_id})
 
 def create_session_query_payload(session_id):
-    """セッションの身分照会を行うためのリクエストペイロードを生成します。"""
-    return _create_base_payload({
-        "session_id": session_id
-    })
+    return _create_base_payload({"session_id": session_id})
 
 def create_session_info_payload(session_id, user_id=None, role=None, status="invalid"):
-    """照会リクエストに対する回答用の詳細ペイロードを生成します。"""
-    return _create_base_payload({
-        "session_id": session_id,
-        "user_id": user_id,
-        "role": role,
-        "status": status
-    })
+    return _create_base_payload({"session_id": session_id, "user_id": user_id, "role": role, "status": status})
 
-# 状態管理（KVストア）関連のペイロード生成関数
 def create_state_get_payload(user_id, key):
-    """特定のユーザーIDとキーに関連付けられた値の取得リクエストを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "key": key,
-        "action": "get"
-    })
+    return _create_base_payload({"user_id": user_id, "key": key, "action": "get"})
 
 def create_state_set_payload(user_id, key, value):
-    """特定のユーザーIDとキーに対して値を保存するためのリクエストを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "key": key,
-        "value": value,
-        "action": "set"
-    })
+    return _create_base_payload({"user_id": user_id, "key": key, "value": value, "action": "set"})
 
 def create_state_keys_query_payload(user_id):
-    """特定のユーザーが保持している全てのキー一覧を取得するためのリクエストを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "action": "list_keys"
-    })
+    return _create_base_payload({"user_id": user_id, "action": "list_keys"})
 
 def create_state_keys_list_payload(user_id, keys):
-    """取得したキーの一覧を返信するためのペイロードを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "keys": keys
-    })
+    return _create_base_payload({"user_id": user_id, "keys": keys})
 
 def create_state_value_payload(user_id, key, value, status="valid"):
-    """取得した値を返信するための専用ペイロードを生成します。"""
-    return _create_base_payload({
-        "user_id": user_id,
-        "key": key,
-        "value": value,
-        "status": status
-    })
+    return _create_base_payload({"user_id": user_id, "key": key, "value": value, "status": status})
+
+# 新設：全件取得・返信用ペイロード生成関数
+def create_state_all_get_payload(user_id):
+    """特定のユーザーに関連付けられた全てのキーと値の取得リクエストを生成します。"""
+    return _create_base_payload({"user_id": user_id, "action": "get_all"})
+
+def create_state_all_value_payload(user_id, data_dict):
+    """取得した全KVデータを返信するための専用ペイロードを生成します。"""
+    return _create_base_payload({"user_id": user_id, "data": data_dict})

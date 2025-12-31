@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import modt
+import time
 
 def init_db(db_path="modt_state.db"):
     """データベースの初期化を行い、テーブルを作成します。"""
@@ -33,7 +34,6 @@ def on_message(client, userdata, msg):
     # 値の保存（SET）処理
     if msg.topic == modt.TOPIC_STATE_SET:
         value = data.get("value")
-        # 値が辞書やリストの場合はJSON文字列に変換して保存します
         db_value = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
         cursor.execute(
             "INSERT OR REPLACE INTO states (user_id, key, value, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
@@ -42,14 +42,13 @@ def on_message(client, userdata, msg):
         conn.commit()
         modt.logger.info(f"Stored value for user: {user_id}, key: {key}")
 
-    # 値の取得（GET）処理
+    # 特定のキーの値を取得（GET）処理
     elif msg.topic == modt.TOPIC_STATE_GET:
         cursor.execute("SELECT value FROM states WHERE user_id = ? AND key = ?", (user_id, key))
         result = cursor.fetchone()
         
         if result:
             status = "valid"
-            # 保存時にJSON化された可能性があるためパースを試みます
             try:
                 val = json.loads(result[0])
             except (json.JSONDecodeError, TypeError, ValueError):
@@ -58,15 +57,27 @@ def on_message(client, userdata, msg):
             status = "not_found"
             val = None
         
-        # 新しくmodt.pyに定義した関数を使用して、値を含めた返信を作成します
-        response = modt.create_state_value_payload(
-            user_id=user_id,
-            key=key,
-            value=val,
-            status=status
-        )
+        response = modt.create_state_value_payload(user_id, key, val, status)
         client.publish(modt.TOPIC_STATE_VAL, response)
-        modt.logger.info(f"Answered GET request for: {user_id}/{key} with value: {val}")
+        modt.logger.info(f"Answered GET request for: {user_id}/{key}")
+
+    # ユーザーに紐付く全データを取得（ALL GET）処理
+    elif msg.topic == modt.TOPIC_STATE_ALL_GET:
+        cursor.execute("SELECT key, value FROM states WHERE user_id = ?", (user_id,))
+        rows = cursor.fetchall()
+        
+        all_data = {}
+        for row in rows:
+            k, v = row[0], row[1]
+            try:
+                all_data[k] = json.loads(v)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                all_data[k] = v
+        
+        # modt.py の新設関数を使用して返信ペイロードを作成
+        response = modt.create_state_all_value_payload(user_id, all_data)
+        client.publish(modt.TOPIC_STATE_ALL_VAL, response)
+        modt.logger.info(f"Published all data for user: {user_id}")
 
     # キー一覧の照会（KEYS QUERY）処理
     elif msg.topic == modt.TOPIC_STATE_KEYS_QUERY:
@@ -82,23 +93,22 @@ def main():
     db_conn = init_db()
     client = modt.get_mqtt_client(client_id="database-unit")
     
-    # コールバック関数内でDB接続を利用できるように設定
     client.user_data_set({"db_conn": db_conn})
     client.on_message = on_message
     
     modt.connect_broker(client)
     
-    # 関連トピックの購読開始
+    # 購読リストを SDK の定数を使用して定義
     client.subscribe([
         (modt.TOPIC_STATE_GET, 0),
         (modt.TOPIC_STATE_SET, 0),
-        (modt.TOPIC_STATE_KEYS_QUERY, 0)
+        (modt.TOPIC_STATE_KEYS_QUERY, 0),
+        (modt.TOPIC_STATE_ALL_GET, 0)
     ])
     
-    modt.logger.info("Database Unit is running...")
+    modt.logger.info("Database Unit is running with SDK updates...")
     
     try:
-        import time
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
