@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoDT Data Viewer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f8f9fa; }
+        .viewer-card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; width: 90%; border-top: 5px solid #34a853; }
+        h1 { color: #202124; font-size: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+        .data-section { margin-bottom: 1.5rem; text-align: left; }
+        .label { font-size: 0.85rem; color: #70757a; margin-bottom: 0.25rem; display: block; }
+        .value { font-family: 'Courier New', Courier, monospace; background: #f1f3f4; padding: 0.75rem; border-radius: 6px; color: #3c4043; word-break: break-all; display: block; font-size: 0.95rem; }
+        .status-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-top: 1rem; }
+        .status-valid { background-color: #e6f4ea; color: #1e8e3e; }
+        .no-data { color: #d93025; font-style: italic; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #1a73e8; text-decoration: none; font-size: 0.9rem; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="viewer-card">
+        <h1>システムデータ閲覧</h1>
+        
+        <div class="data-section">
+            <span class="label">現在のセッションID</span>
+            <span class="value">{{ session_id }}</span>
+        </div>
+
+        <div class="data-section">
+            <span class="label">照会されたユーザーID</span>
+            <span class="value">{{ user_id }}</span>
+        </div>
+
+        <div class="data-section">
+            <span class="label">取得された設定 (Key: theme)</span>
+            <span class="value">
+                {% if theme %}
+                    {{ theme }}
+                {% else %}
+                    <span class="no-data">未設定 (db-unitにデータがありません)</span>
+                {% endif %}
+            </span>
+        </div>
+
+        <div class="status-badge status-valid">
+            連携ステータス: 正常動作中
+        </div>
+
+        <div style="text-align: center;">
+            <a href="http://localhost:5001" class="back-link">← ダミーアプリに戻る</a>
+        </div>
+    </div>
+</body>
+</html>

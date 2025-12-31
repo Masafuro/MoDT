@@ -12,9 +12,10 @@ def get_env_or_raise(key):
         raise RuntimeError(f"必須の環境変数 '{key}' が設定されていません。.envファイルを確認してください。")
     return value
 
-# 起動時に必須設定をチェック（存在しなければここで停止する）
+# 起動時に必須設定をチェック（viewer-unitのURLを追加）
 IDENTIFY_PUBLIC_URL = get_env_or_raise("IDENTIFY_PUBLIC_URL")
 DUMMY_APP_PUBLIC_URL = get_env_or_raise("DUMMY_APP_PUBLIC_URL")
+VIEWER_PUBLIC_URL = get_env_or_raise("VIEWER_PUBLIC_URL")
 
 # セッション照会の結果を一時的に保持する辞書
 session_responses = {}
@@ -28,7 +29,6 @@ def on_message(client, userdata, msg):
     # 1. ログイン直後のリダイレクト準備処理
     if msg.topic == modt.TOPIC_AUTH_SUCCESS:
         session_id = data.get("session_id")
-        # 厳格に取得された公開URLを通知
         payload = modt.create_app_ready_payload(
             app_name="dummy-app",
             redirect_url=DUMMY_APP_PUBLIC_URL,
@@ -46,10 +46,10 @@ def on_message(client, userdata, msg):
 mqtt_client = modt.get_mqtt_client()
 mqtt_client.on_message = on_message
 
-# ブローカー接続（内部で環境変数チェックが行われる）
+# ブローカー接続
 modt.connect_broker(mqtt_client)
 
-# トピック定数を使用して購読
+# トピックの購読
 mqtt_client.subscribe(modt.TOPIC_AUTH_SUCCESS)
 mqtt_client.subscribe(modt.TOPIC_SESSION_INFO)
 
@@ -67,8 +67,10 @@ def verify_session_via_mqtt(session_id):
 
 @app.route("/")
 def index():
+    # クッキーからセッションIDを取得
     session_id = request.cookies.get("modt_session_id")
     user_info = None
+    
     if session_id:
         result = verify_session_via_mqtt(session_id)
         if result and result.get("status") == "valid":
@@ -76,11 +78,18 @@ def index():
                 "user_id": result.get("user_id"),
                 "role": result.get("role")
             }
-    return render_template("index.html", user_info=user_info)
+    
+    # テンプレートに user_info に加え、session_id と viewer_url を渡すように修正
+    return render_template(
+        "index.html", 
+        user_info=user_info, 
+        session_id=session_id, 
+        viewer_url=VIEWER_PUBLIC_URL
+    )
 
 @app.route("/logout")
 def logout():
-    """クッキーを削除し、指定された認証画面へ戻ります。"""
+    """クッキーを削除し、ログイン画面へ戻ります。"""
     login_url = f"{IDENTIFY_PUBLIC_URL}/login"
     response = make_response(redirect(login_url))
     response.set_cookie("modt_session_id", "", expires=0)

@@ -83,6 +83,25 @@ services:
       - ./identify-unit/.env
     networks:
       - modt-network
+  
+  viewer-app:
+    build: ./viewer-unit
+    container_name: modt-viewer-app
+    depends_on:
+      - broker
+      - identify-app
+      - db-unit
+    ports:
+      - "${VIEWER_EXTERNAL_PORT}:${VIEWER_INTERNAL_PORT}"
+    volumes:
+      - ./common:/app/common
+    environment:
+      - PYTHONPATH=/app/common
+      - MODT_BROKER_HOST=broker
+    env_file:
+      - .env
+    networks:
+      - modt-network
 
 networks:
   modt-network:

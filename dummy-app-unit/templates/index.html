@@ -10,8 +10,12 @@
         h1 { color: #1a73e8; margin-bottom: 1rem; }
         p { color: #5f6368; line-height: 1.6; }
         .user-info { margin: 1.5rem 0; padding: 1rem; background-color: #e8f0fe; border-radius: 4px; color: #1967d2; font-weight: bold; }
-        .logout-btn { display: inline-block; margin-top: 1rem; padding: 0.6rem 1.2rem; background-color: #d93025; color: white; text-decoration: none; border-radius: 4px; transition: background-color 0.2s; }
-        .logout-btn:hover { background-color: #b3261e; }
+        .btn-group { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+        .btn { display: inline-block; padding: 0.6rem 1.2rem; text-decoration: none; border-radius: 4px; transition: opacity 0.2s; color: white; }
+        .btn:hover { opacity: 0.8; }
+        .viewer-btn { background-color: #34a853; } /* 緑色のボタン */
+        .logout-btn { background-color: #d93025; } /* 赤色のボタン */
+        .login-btn { background-color: #1a73e8; } /* 青色のボタン */
         .guest-msg { color: #d93025; font-weight: bold; }
     </style>
 </head>
@@ -26,13 +30,17 @@
                 権限: {{ user_info.role }}
             </div>
             <p>認証ユニットとのMQTT連携により、あなたの身元が正しく確認されました。</p>
-            <a href="/logout" class="logout-btn">ログオフする</a>
+            
+            <div class="btn-group">
+                <a href="{{ viewer_url }}/view-data?session_id={{ session_id }}" class="btn viewer-btn">自分のデータを確認する</a>
+                <a href="/logout" class="btn logout-btn">ログオフする</a>
+            </div>
         {% else %}
             <div class="user-info guest-msg">
                 セッションが確認できません
             </div>
             <p>直接アクセスされたか、セッションが切断されています。再度ログインしてください。</p>
-            <a href="http://localhost:5000/login" class="logout-btn" style="background-color: #1a73e8;">ログイン画面へ</a>
+            <a href="http://localhost:5000/login" class="btn login-btn">ログイン画面へ</a>
         {% endif %}
     </div>
 </body>
