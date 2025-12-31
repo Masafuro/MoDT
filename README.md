@@ -11,64 +11,52 @@ MQTTをバックボーンとした、Dockerコンテナによる疎結合なマ�
 * **状態管理（KVストア）基盤**: ユーザーごとの設定値をSQLiteで永続化し、MQTT経由で読み書きする仕組み。
 * **動的データビューワー**: 全件取得プロトコルを用いた、ユーザー設定の一覧表示およびブラウザからの更新機能。
 
+## ユニット構成と詳細ドキュメント
+
+本システムは以下のユニットで構成されています。各ディレクトリ内の `README.md` に、それぞれの詳細な仕様、使用トピック、エンドポイントの解説があります。
+
+* **[common/](common/)**: 共通SDK `modt.py`。システム全体の「法律」となる通信規格を定義。
+* **[identify-unit/](identify-unit/)**: ユーザー認証およびセッション・ユーザーIDの紐付けを管理する「門番」。
+* **[db-unit/](db-unit/)**: SQLiteを用いた状態保持。非同期KVストア機能を提供。
+* **[viewer-unit/](viewer-unit/)**: ユーザー設定の閲覧・更新を行う動的なWeb管理コンソール。
+* **[dummy-app-unit/](dummy-app-unit/)**: リダイレクトと連携の動作確認用サンプルアプリケーション。
+* **[monitor/](monitor/)**: システム内の全MQTT通信をリアルタイムで可視化するデバッグ・監視ユニット。
+* **broker**: Mosquittoによるメッセージハブ。内部ネットワーク通信を統制。
+
 ## 標準プロトコル仕様
 
-ユニット間の通信は、`common/modt.py` で定義された以下のトピックとペイロード形式に厳格に従います。
+ユニット間の通信は、`common/modt.py` で定義されたトピックおよびペイロード形式に厳格に従います。詳細は [common/README.md](common/README.md) を参照してください。
 
 ### 1. 認証とリダイレクト
-* **modt/auth/success**: 認証ユニットが発行。ユーザーIDとセッションIDを通知。
-* **modt/app/ready**: アプリ側が発行。セッションIDを照合し、遷移先URLを認証ユニットへ通知。
+* `modt/auth/success`: 認証ユニットが発行。
+* `modt/app/ready`: 各アプリユニットが発行。遷移先URLを通知。
 
 ### 2. セッション身元照会
-* **modt/session/query**: セッションIDからユーザー情報を求めるリクエスト。
-* **modt/session/info**: 照会に対する回答。ユーザーID、ロール、ステータスを含む。
+* `modt/session/query`: セッションIDから実ユーザー情報を求めるリクエスト。
+* `modt/session/info`: 照会に対する回答（user_id, role, status）。
 
 ### 3. 状態管理 (KVストア)
-* **modt/state/get / set**: 特定のキーに対する値の取得および保存。
-* **modt/state/value**: 取得リクエストに対する単一値の返信。
-* **modt/state/all/get**: ユーザーに紐付く全データの取得リクエスト。
-* **modt/state/all/value**: ユーザーの全KVデータを辞書形式で返信。
+* `modt/state/all/get`: ユーザーに紐付く全データの取得リクエスト。
+* `modt/state/all/value`: 辞書形式による全データの一括返信。
+* `modt/state/get` / `set`: 特定キーに対する単一値の読み書き。
 
-## 開発用SDK (common/modt.py)
+## 開発用SDKの実装例
 
-開発効率の向上とプロトコル遵守のため、共通ライブラリ `modt.py` を使用してください。
+共通ライブラリ `modt.py` を使用することで、プロトコルを意識せずに開発が可能です。
 
-### SDKを利用した実装例
 ```python
 import modt
 
 # クライアントの初期化
-client = modt.get_mqtt_client(client_id="my-app-unit")
-
-def on_message(client, userdata, msg):
-    data, error = modt.parse_payload(msg.payload.decode())
-    if error: return
-
-    if msg.topic == modt.TOPIC_SESSION_INFO:
-        # セッション照会結果の処理
-        user_id = data.get("user_id")
-        print(f"User identified: {user_id}")
-
-client.on_message = on_message
+client = modt.get_mqtt_client(client_id="my-service")
 modt.connect_broker(client)
 
-# トピックの購読
-client.subscribe(modt.TOPIC_SESSION_INFO)
-
-# メッセージの送信
-payload = modt.create_session_query_payload("session-uuid-here")
-client.publish(modt.TOPIC_SESSION_QUERY, payload)
+# メッセージ送信（例：全件取得リクエスト）
+payload = modt.create_state_all_get_payload("user-uuid-here")
+client.publish(modt.TOPIC_STATE_ALL_GET, payload)
 ```
 
-### ユニット構成
-- broker: Mosquittoによるメッセージハブ。内部ネットワークのみで通信。
-- monitor: 全トピックのログをリアルタイムで監視・表示。
-- identify-unit: ユーザー認証およびセッションとユーザーIDの紐付け管理。
-- db-unit: SQLiteを用いた状態保持。KVストアとしての機能を提供。
-- viewer-unit: ユーザー設定の閲覧・更新を行うWebコンソール。
-- dummy-app-unit: リダイレクトと連携の動作確認用サンプルアプリ。
-
-### 実行環境の基本設定
+## 実行環境の基本設定
 - ネットワーク: すべてのコンテナは modt-network 内で相互通信します。
 - ログ出力: Pythonユニットは PYTHONUNBUFFERED=1 を設定し、リアルタイムなログ取得を保証します。
 - 共有ライブラリ: ./common ディレクトリを各コンテナにマウントし、PYTHONPATH を通して modt.py を利用可能にします。

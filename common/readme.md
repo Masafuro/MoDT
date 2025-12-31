@@ -1,86 +1,68 @@
+# MoDT Common SDK (modt.py)
 
-## MoDT SDK (common/modt.py) 仕様書
+MoDT (Modular Docker through MQTT) フレームワークにおける共通基盤ライブラリです。各ユニット間の通信規格を標準化し、MQTT クライアントの管理やペイロードの生成を一元化します。
 
-本モジュールは、Modularized Docker through mqtT (MoDT) フレームワークにおけるユニット間の通信を抽象化し、プロトコルの厳格な運用を支援するための開発キットです。本SDKを利用することで、Paho MQTTのバージョン差異の吸収、ブローカーへの接続管理、および規格に準拠したペイロードの生成を容易に行うことができます。
+## 概要
 
-### 提供機能一覧
+このライブラリは、マイクロサービス間の非同期通信において「どのトピックで」「どのようなデータ形式で」やり取りするかというプロトコルを定義します。すべてのユニットはこの SDK を通じてメッセージを構成することで、システム全体の整合性を保ちます。
 
-| 関数名 | 引数 | 説明 |
-| --- | --- | --- |
-| `get_mqtt_client` | なし | Paho MQTTのバージョン（1.x / 2.x）を自動判別し、適切なクライアントオブジェクトを生成して返します。 |
-| `connect_broker` | client | 環境変数 `MODT_BROKER_HOST` を参照してブローカーに接続し、非同期ループを開始します。 |
-| `parse_payload` | payload_str | 受信した文字列をJSONとして解析し、データオブジェクトとエラー内容をペアで返します。 |
-| `create_auth_success_payload` | user_id, session_id, role | 認証成功時に発行する `modt/auth/success` トピック用の標準ペイロードを生成します。 |
-| `create_app_ready_payload` | app_name, redirect_url, session_id | アプリ準備完了時に発行する `modt/app/ready` トピック用の標準ペイロードを生成します。 |
+## 主要なトピック定義
 
----
+システム全体で利用されるトピックは定数として定義されています。
 
-### 実装サンプル：認証ユニット (identify-app)
+### 認証・セッション関連
+* `TOPIC_AUTH_SUCCESS`: 認証成功通知 ("modt/auth/success")
+* `TOPIC_APP_READY`: アプリ準備完了通知 ("modt/app/ready")
+* `TOPIC_SESSION_QUERY`: セッション照会リクエスト ("modt/session/query")
+* `TOPIC_SESSION_INFO`: セッション照会回答 ("modt/session/info")
 
-認証ユニット側では、ログイン成功時に標準的なペイロードを生成して発行するために本SDKを利用します。これにより、すべてのアプリケーションユニットが共通して解釈可能な形式で通知を送出することが保証されます。
+### 状態管理 (KVストア) 関連
+* `TOPIC_STATE_GET`: 単一キー取得リクエスト ("modt/state/get")
+* `TOPIC_STATE_SET`: 値保存リクエスト ("modt/state/set")
+* `TOPIC_STATE_VAL`: 単一値返信 ("modt/state/value")
+* `TOPIC_STATE_ALL_GET`: 全データ取得リクエスト ("modt/state/all/get")
+* `TOPIC_STATE_ALL_VAL`: 全データ返信 ("modt/state/all/value")
+
+## 共通関数
+
+### クライアント管理
+* **`get_mqtt_client(client_id)`**: Paho MQTT のバージョン差異（v1/v2）を吸収したクライアントオブジェクトを生成します。
+* **`connect_broker(client)`**: 環境変数 `MODT_BROKER_HOST` および `MODT_BROKER_PORT` を参照してブローカーに接続し、バックグラウンドループを開始します。
+* **`disconnect_broker(client)`**: 安全にループを停止し、接続を解除します。
+
+### ペイロード処理
+* **`parse_payload(payload_str)`**: 受信した JSON 文字列を辞書形式に変換します。パース失敗時にはエラー情報を返します。
+* **`_create_base_payload(extra_data)`**: すべてのメッセージに共通の `timestamp` (ISO 8601形式) を付与します。
+
+## ペイロード生成ヘルパー
+
+各通信プロトコルに準拠した JSON ペイロードを生成します。
+
+### 状態管理 (KVストア) 用
+* **`create_state_get_payload(user_id, key)`**: 特定のキーの取得リクエスト。
+* **`create_state_set_payload(user_id, key, value)`**: 値の保存リクエスト。`value` には文字列のほか、辞書やリストも指定可能です。
+* **`create_state_all_get_payload(user_id)`**: ユーザーに紐付く全データの取得リクエスト。
+* **`create_state_all_value_payload(user_id, data_dict)`**: `db-unit` から返信される、全 KV ペアを含む辞書データ用。
+
+## 実装上のメリット
+
+
+
+1. **プロトコルのカプセル化**: ペイロードの構造（キー名やデータ型）が変更された場合でも、この SDK を修正するだけで全ユニットに対応が波及します。
+2. **接続ロジックの共通化**: Docker Compose 環境下でのホスト名解決やポート設定を意識せずに接続が可能です。
+3. **データ型への柔軟性**: `db-unit` への保存時における JSON 変換などを意識せず、Python のネイティブなデータ構造をそのまま扱えます。
+
+## 配置と利用方法
+
+Docker Compose において、ホスト側の `./common` ディレクトリを各コンテナの `/app/common` 等にマウントし、`PYTHONPATH` を通してインポートしてください。
 
 ```python
 from common import modt
 
-# クライアントの初期化と接続
-mqtt_client = modt.get_mqtt_client()
-modt.connect_broker(mqtt_client)
+# 接続例
+client = modt.get_mqtt_client("my-service")
+modt.connect_broker(client)
 
-# ログイン成功時の処理例
-def handle_login_success(user):
-    session_id = generate_uuid() # 任意のUUID生成
-    
-    # SDKを使用して規格準拠のペイロードを作成
-    payload = modt.create_auth_success_payload(
-        user_id=str(user.id),
-        session_id=session_id,
-        role=user.role
-    )
-    
-    # メッセージの発行
-    mqtt_client.publish("modt/auth/success", payload)
-
-```
-
----
-
-### 実装サンプル：アプリケーションユニット (dummy-app)
-
-アプリケーションユニット側では、認証通知の受信解析と、自身の準備完了報告を行う際にSDKを活用します。
-
-```python
-from common import modt
-
-def on_message(client, userdata, msg):
-    if msg.topic == "modt/auth/success":
-        # 受信データの解析
-        data, error = modt.parse_payload(msg.payload.decode())
-        if error: return
-
-        # アプリ側の準備完了メッセージを作成
-        payload = modt.create_app_ready_payload(
-            app_name="my-app",
-            redirect_url="http://localhost:5001/",
-            session_id=data.get("session_id")
-        )
-        
-        # 認証ユニットへリダイレクト準備完了を通知
-        client.publish("modt/app/ready", payload)
-
-mqtt_client = modt.get_mqtt_client()
-mqtt_client.on_message = on_message
-modt.connect_broker(mqtt_client)
-mqtt_client.subscribe("modt/auth/success")
-
-```
-
----
-
-### 導入および環境設定
-
-本SDKを有効にするためには、各ユニットのプログラムからアクセス可能なパスに `common` ディレクトリを配置する必要があります。通常はDocker Composeのボリューム機能を利用して、ホスト側の `./common` ディレクトリを各コンテナの `/app/common` にマウントする構成を推奨します。また、ディレクトリ内にはPythonパッケージとして認識させるための `__init__.py` ファイルが必須となります。
-
-本ドキュメントの規定に従って各ユニットを実装することで、MoDTシステム内での円滑な連動と、将来的なプロトコル拡張に対する柔軟な対応力が確保されます。
-
----
-
+# メッセージ送信例
+payload = modt.create_state_set_payload("user-123", "theme", "dark")
+client.publish(modt.TOPIC_STATE_SET, payload)
