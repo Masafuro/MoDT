@@ -6,16 +6,34 @@
     <title>MoDT Dummy App</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
-        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        h1 { color: #1a73e8; }
-        p { color: #5f6368; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
+        h1 { color: #1a73e8; margin-bottom: 1rem; }
+        p { color: #5f6368; line-height: 1.6; }
+        .user-info { margin: 1.5rem 0; padding: 1rem; background-color: #e8f0fe; border-radius: 4px; color: #1967d2; font-weight: bold; }
+        .logout-btn { display: inline-block; margin-top: 1rem; padding: 0.6rem 1.2rem; background-color: #d93025; color: white; text-decoration: none; border-radius: 4px; transition: background-color 0.2s; }
+        .logout-btn:hover { background-color: #b3261e; }
+        .guest-msg { color: #d93025; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Welcome to MoDT Ecosystem</h1>
+        <h1>MoDT Ecosystem</h1>
         <p>これはダミーアプリケーションユニットの画面です。</p>
-        <p>SDKとテンプレートエンジンによって、コードとデザインが分離されました。</p>
+
+        {% if user_info %}
+            <div class="user-info">
+                ログイン中のユーザーID: {{ user_info.user_id }}<br>
+                権限: {{ user_info.role }}
+            </div>
+            <p>認証ユニットとのMQTT連携により、あなたの身元が正しく確認されました。</p>
+            <a href="/logout" class="logout-btn">ログオフする</a>
+        {% else %}
+            <div class="user-info guest-msg">
+                セッションが確認できません
+            </div>
+            <p>直接アクセスされたか、セッションが切断されています。再度ログインしてください。</p>
+            <a href="http://localhost:5000/login" class="logout-btn" style="background-color: #1a73e8;">ログイン画面へ</a>
+        {% endif %}
     </div>
 </body>
 </html>

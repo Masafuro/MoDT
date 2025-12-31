@@ -18,9 +18,8 @@ services:
       - modt-network
     volumes:
       - ./common:/app/common
-    environment:
-      - MODT_BROKER_HOST=broker
-      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
 
   dummy-app:
     build: ./dummy-app-unit
@@ -30,20 +29,17 @@ services:
     networks:
       - modt-network
     ports:
-      - "5001:5000"
+      - "${DUMMY_APP_EXTERNAL_PORT}:${DUMMY_APP_INTERNAL_PORT}"
     volumes:
       - ./common:/app/common
-    environment:
-      - MODT_BROKER_HOST=broker
-      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
 
   identify-db:
     image: postgres:15-alpine
     container_name: identify-db
-    environment:
-      POSTGRES_DB: identify_db
-      POSTGRES_USER: modt_admin
-      POSTGRES_PASSWORD: password123
+    env_file:
+      - ./identify-unit/.env
     volumes:
       - ./identify-unit/db/init:/docker-entrypoint-initdb.d
       - identify-db-data:/var/lib/postgresql/data
@@ -57,13 +53,12 @@ services:
       - identify-db
       - broker
     ports:
-      - "8080:80"
+      - "${IDENTIFY_EXTERNAL_PORT}:${IDENTIFY_INTERNAL_PORT}"
     volumes:
       - ./common:/app/common
-    environment:
-      - DATABASE_URL=postgresql://modt_admin:password123@identify-db:5432/identify_db
-      - MQTT_BROKER_HOST=broker
-      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+      - ./identify-unit/.env
     networks:
       - modt-network
 

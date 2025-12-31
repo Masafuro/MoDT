@@ -2,7 +2,7 @@ import os
 import uuid
 import asyncio
 from datetime import datetime
-from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, text
@@ -16,44 +16,69 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# データベース接続設定
+# .env から設定を読み込み
 DATABASE_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY", "default-secret-key")
+IDENTIFY_PUBLIC_URL = os.getenv("IDENTIFY_PUBLIC_URL", "http://localhost:5000")
+
+# データベース接続設定
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 準備完了したアプリの情報を保持する辞書
-ready_apps = {}
+# 状態管理用の辞書
+ready_apps = {}      # リダイレクト待ちのセッション (session_id -> redirect_url)
+active_sessions = {} # ログイン済みの有効なセッション情報 (session_id -> {user_id, role})
 
 def on_message(client, userdata, msg):
-    """MQTTメッセージ受信時の処理。SDKのパース機能を利用します。"""
-    if msg.topic == "modt/app/ready":
-        print(f"--- MQTT Message Received on topic: {msg.topic} ---", flush=True)
-        # SDKを使用してJSONのパースとバリデーションを実行
-        data, error = modt.parse_payload(msg.payload.decode())
-        
-        if error:
-            print(f"Payload Error: {error}", flush=True)
-            return
+    """MQTTメッセージ受信時の処理。"""
+    data, error = modt.parse_payload(msg.payload.decode())
+    if error:
+        print(f"Payload Error: {error}", flush=True)
+        return
 
+    # 1. アプリ準備完了通知の処理 (リダイレクトフロー)
+    if msg.topic == "modt/app/ready":
         s_id = data.get("session_id")
         redirect_url = data.get("redirect_url")
-        
         if s_id and redirect_url:
             ready_apps[s_id] = redirect_url
-            print(f"Strict Match: Session {s_id} registered for redirection.", flush=True)
+            print(f"Session {s_id} registered for redirection to {redirect_url}.", flush=True)
 
-# SDKを利用したMQTTクライアントの初期化と接続
+    # 2. セッション照会リクエストの処理 (他ユニットからの身分確認)
+    elif msg.topic == "modt/session/query":
+        query_sid = data.get("session_id")
+        print(f"Session query received for: {query_sid}", flush=True)
+        
+        session_info = active_sessions.get(query_sid)
+        if session_info:
+            # 有効なセッション情報を返信
+            res_payload = modt.create_session_info_payload(
+                session_id=query_sid,
+                user_id=session_info["user_id"],
+                role=session_info["role"],
+                status="valid"
+            )
+        else:
+            # 無効または存在しないセッションとして返信
+            res_payload = modt.create_session_info_payload(
+                session_id=query_sid,
+                status="invalid"
+            )
+        
+        client.publish("modt/session/info", res_payload)
+
+# SDKを利用したMQTTクライアントの初期化
 mqtt_client = modt.get_mqtt_client()
 mqtt_client.on_message = on_message
 
 @app.on_event("startup")
 def startup_event():
-    """アプリ起動時にSDKを通じてブローカーへ接続します。"""
-    print("Connecting to MQTT Broker via MoDT SDK...")
+    """起動時にブローカーへ接続し、必要なトピックを購読します。"""
     try:
         modt.connect_broker(mqtt_client)
         mqtt_client.subscribe("modt/app/ready")
-        print("MQTT Connection and subscription successful.")
+        mqtt_client.subscribe("modt/session/query")
+        print("MQTT Connection and subscriptions successful.")
     except Exception as e:
         print(f"MQTT Startup Error: {e}")
 
@@ -91,17 +116,29 @@ def post_login(request: Request, username: str = Form(...), password: str = Form
     
     if user and pwd_context.verify(password, user.password_hash):
         session_id = str(uuid.uuid4())
+        user_id_str = str(user.id)
         
-        # SDKを使用して規格に準拠した認証成功ペイロードを作成
-        payload = modt.create_auth_success_payload(str(user.id), session_id, user.role)
+        # セッション情報をメモリ上に保持
+        active_sessions[session_id] = {
+            "user_id": user_id_str,
+            "role": user.role
+        }
         
-        print(f"Login successful for {username}. Publishing auth success event via SDK.")
-        try:
-            mqtt_client.publish("modt/auth/success", payload)
-        except Exception as e:
-            print(f"Failed to publish auth success: {e}")
+        # 認証成功イベントを発行 (SDKを利用)
+        payload = modt.create_auth_success_payload(user_id_str, session_id, user.role)
+        mqtt_client.publish("modt/auth/success", payload)
         
-        return RedirectResponse(url=f"/waiting?session_id={session_id}", status_code=303)
+        # クッキーをセットして待機画面へリダイレクト
+        # 外部公開URL設定に基づき、セキュアなクッキーを発行します
+        response = RedirectResponse(url=f"/waiting?session_id={session_id}", status_code=303)
+        response.set_cookie(
+            key="modt_session_id", 
+            value=session_id, 
+            httponly=True, 
+            samesite="lax",
+            path="/"
+        )
+        return response
     
     return templates.TemplateResponse("login.html", {"request": request, "username": username, "error": "認証に失敗しました"})
 

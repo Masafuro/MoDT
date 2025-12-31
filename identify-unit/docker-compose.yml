@@ -5,6 +5,8 @@ services:
     image: postgres:15-alpine
     container_name: identify-db
     restart: always
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -20,12 +22,19 @@ services:
     container_name: identify-app
     restart: always
     ports:
-      - "8080:80"
+      - "${IDENTIFY_EXTERNAL_PORT}:${IDENTIFY_INTERNAL_PORT}"
+    env_file:
+      - ../.env
+      - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      MQTT_BROKER_HOST: ${MQTT_BROKER_HOST}
-      MQTT_BROKER_PORT: ${MQTT_BROKER_PORT}
+      # 接続文字列は .env 側で定義済みのものを優先して利用します
+      DATABASE_URL: ${DATABASE_URL}
+      MODT_BROKER_HOST: ${MODT_BROKER_HOST}
+      MODT_BROKER_PORT: ${MODT_BROKER_PORT}
       SECRET_KEY: ${SECRET_KEY}
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ../common:/app/common
     depends_on:
       - db
     networks:
