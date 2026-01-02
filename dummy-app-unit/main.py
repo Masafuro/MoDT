@@ -12,13 +12,25 @@ def get_env_or_raise(key):
         raise RuntimeError(f"必須の環境変数 '{key}' が設定されていません。.envファイルを確認してください。")
     return value
 
-# 起動時に必須設定をチェック（viewer-unitのURLを追加）
+# 起動時に必須設定をチェック
 IDENTIFY_PUBLIC_URL = get_env_or_raise("IDENTIFY_PUBLIC_URL")
 DUMMY_APP_PUBLIC_URL = get_env_or_raise("DUMMY_APP_PUBLIC_URL")
 VIEWER_PUBLIC_URL = get_env_or_raise("VIEWER_PUBLIC_URL")
 
 # セッション照会の結果を一時的に保持する辞書
 session_responses = {}
+
+def on_connect(client, userdata, flags, rc):
+    """ブローカー接続成功時に呼ばれるコールバック。"""
+    if rc == 0:
+        modt.logger.info("Dummy App Unit connected to MQTT broker.")
+        # SDKの定数を使用して購読リストを定義
+        client.subscribe([
+            (modt.TOPIC_AUTH_SUCCESS, 0),
+            (modt.TOPIC_SESSION_INFO, 0)
+        ])
+    else:
+        modt.logger.error(f"Dummy App Unit connection failed with code {rc}")
 
 def on_message(client, userdata, msg):
     """MQTTメッセージ受信時の処理。"""
@@ -35,23 +47,23 @@ def on_message(client, userdata, msg):
             session_id=session_id
         )
         client.publish(modt.TOPIC_APP_READY, payload)
+        modt.logger.info(f"Published app-ready for session: {session_id}")
 
     # 2. セッション照会結果の受信処理
     elif msg.topic == modt.TOPIC_SESSION_INFO:
         s_id = data.get("session_id")
         if s_id:
             session_responses[s_id] = data
+            modt.logger.info(f"Received session info for: {s_id}")
 
 # SDKを利用したMQTTセットアップ
-mqtt_client = modt.get_mqtt_client()
+mqtt_client = modt.get_mqtt_client(client_id="dummy-app-unit-service")
+mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
 
-# ブローカー接続
+# ブローカー接続とバックグラウンドループの開始
 modt.connect_broker(mqtt_client)
-
-# トピックの購読
-mqtt_client.subscribe(modt.TOPIC_AUTH_SUCCESS)
-mqtt_client.subscribe(modt.TOPIC_SESSION_INFO)
+mqtt_client.loop_start()
 
 def verify_session_via_mqtt(session_id):
     """identify-unitにセッションの妥当性を問い合わせます。"""
@@ -67,7 +79,6 @@ def verify_session_via_mqtt(session_id):
 
 @app.route("/")
 def index():
-    # クッキーからセッションIDを取得
     session_id = request.cookies.get("modt_session_id")
     user_info = None
     
@@ -79,7 +90,6 @@ def index():
                 "role": result.get("role")
             }
     
-    # テンプレートに user_info に加え、session_id と viewer_url を渡すように修正
     return render_template(
         "index.html", 
         user_info=user_info, 

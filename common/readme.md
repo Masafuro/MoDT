@@ -1,68 +1,38 @@
-# MoDT Common SDK (modt.py)
+# MoDT Common SDK (modt パッケージ)
 
-MoDT (Modular Docker through MQTT) フレームワークにおける共通基盤ライブラリです。各ユニット間の通信規格を標準化し、MQTT クライアントの管理やペイロードの生成を一元化します。
+MoDT (Modular Docker through MQTT) フレームワークにおいて、各ユニット間の通信規格を標準化するための共通基盤ライブラリです。従来の単一ファイル構成から役割別のモジュール分割へと移行したことで、保守性と拡張性が大幅に向上しました。すべてのユニットはこの SDK を通じてメッセージを構成することで、システム全体のプロトコル整合性を維持します。
 
-## 概要
+## 概要とパッケージ構造
 
-このライブラリは、マイクロサービス間の非同期通信において「どのトピックで」「どのようなデータ形式で」やり取りするかというプロトコルを定義します。すべてのユニットはこの SDK を通じてメッセージを構成することで、システム全体の整合性を保ちます。
+このライブラリは common/modt/ ディレクトリ内の複数のモジュールで構成されています。topics.py はシステム全体のトピック定数を管理し、core.py はブローカーへの接続やクライアント生成を担います。payloads.py は各通信プロトコルに準拠した JSON 生成を行い、utils.py は共通のロギングやパース処理をそれぞれ提供します。これらは __init__.py によって統合されているため、利用側は内部の分割を意識することなく、単一の入り口からすべての機能を利用できます。
 
-## 主要なトピック定義
+## 定義されているプロトコル
 
-システム全体で利用されるトピックは定数として定義されています。
+通信トピックは認証・セッション関連と状態管理関連に大別されます。認証関連では成功通知やセッション照会、アプリの準備完了通知などが定義されています。状態管理関連では単一キーの取得や保存に加え、今回新しく追加された全件取得、特定のキーの削除、およびユーザーに紐付く全データの消去といった操作がサポートされました。これによりデータベースユニットに対してよりきめ細やかな操作リクエストを送信することが可能になります。
 
-### 認証・セッション関連
-* `TOPIC_AUTH_SUCCESS`: 認証成功通知 ("modt/auth/success")
-* `TOPIC_APP_READY`: アプリ準備完了通知 ("modt/app/ready")
-* `TOPIC_SESSION_QUERY`: セッション照会リクエスト ("modt/session/query")
-* `TOPIC_SESSION_INFO`: セッション照会回答 ("modt/session/info")
+## 主要な機能とユーティリティ
 
-### 状態管理 (KVストア) 関連
-* `TOPIC_STATE_GET`: 単一キー取得リクエスト ("modt/state/get")
-* `TOPIC_STATE_SET`: 値保存リクエスト ("modt/state/set")
-* `TOPIC_STATE_VAL`: 単一値返信 ("modt/state/value")
-* `TOPIC_STATE_ALL_GET`: 全データ取得リクエスト ("modt/state/all/get")
-* `TOPIC_STATE_ALL_VAL`: 全データ返信 ("modt/state/all/value")
+クライアント管理においては、Paho MQTT のバージョン差異を吸収してオブジェクトを生成する機能や、環境変数を参照して自動的にブローカーへ接続する機能が提供されます。接続後はバックグラウンドでループが開始され、非同期通信を安定して継続できます。ペイロード処理では、すべての送信メッセージに対して自動的に ISO 8601 形式のタイムスタンプが付与され、受信側での順序制御やデバッグに役立てられます。パース処理も共通化されており、JSON フォーマットの正当性を検証した上で辞書形式として取り出すことができます。
 
-## 共通関数
+## 実装の利点
 
-### クライアント管理
-* **`get_mqtt_client(client_id)`**: Paho MQTT のバージョン差異（v1/v2）を吸収したクライアントオブジェクトを生成します。
-* **`connect_broker(client)`**: 環境変数 `MODT_BROKER_HOST` および `MODT_BROKER_PORT` を参照してブローカーに接続し、バックグラウンドループを開始します。
-* **`disconnect_broker(client)`**: 安全にループを停止し、接続を解除します。
-
-### ペイロード処理
-* **`parse_payload(payload_str)`**: 受信した JSON 文字列を辞書形式に変換します。パース失敗時にはエラー情報を返します。
-* **`_create_base_payload(extra_data)`**: すべてのメッセージに共通の `timestamp` (ISO 8601形式) を付与します。
-
-## ペイロード生成ヘルパー
-
-各通信プロトコルに準拠した JSON ペイロードを生成します。
-
-### 状態管理 (KVストア) 用
-* **`create_state_get_payload(user_id, key)`**: 特定のキーの取得リクエスト。
-* **`create_state_set_payload(user_id, key, value)`**: 値の保存リクエスト。`value` には文字列のほか、辞書やリストも指定可能です。
-* **`create_state_all_get_payload(user_id)`**: ユーザーに紐付く全データの取得リクエスト。
-* **`create_state_all_value_payload(user_id, data_dict)`**: `db-unit` から返信される、全 KV ペアを含む辞書データ用。
-
-## 実装上のメリット
-
-
-
-1. **プロトコルのカプセル化**: ペイロードの構造（キー名やデータ型）が変更された場合でも、この SDK を修正するだけで全ユニットに対応が波及します。
-2. **接続ロジックの共通化**: Docker Compose 環境下でのホスト名解決やポート設定を意識せずに接続が可能です。
-3. **データ型への柔軟性**: `db-unit` への保存時における JSON 変換などを意識せず、Python のネイティブなデータ構造をそのまま扱えます。
+SDK をパッケージ化したことで、特定の機能拡張が他のロジックを汚染することなく行えるようになりました。特にペイロードの生成ロジックはカプセル化されているため、将来的にメッセージ形式の仕様変更が必要になった場合でも、SDK 内部を修正するだけでシステム全体に反映されます。また、データベースユニットとのやり取りにおいて、Python ネイティブのデータ構造と JSON 間の変換を SDK が一手に引き受けるため、開発者はビジネスロジックに集中できるというメリットがあります。
 
 ## 配置と利用方法
 
-Docker Compose において、ホスト側の `./common` ディレクトリを各コンテナの `/app/common` 等にマウントし、`PYTHONPATH` を通してインポートしてください。
+Docker Compose 環境において、ホスト側の ./common ディレクトリを各コンテナの /app/common 等にボリュームマウントしてください。その上で PYTHONPATH に /app を含めることで、コード内からはパッケージとしてインポート可能になります。利用の際は、まずクライアントを生成してブローカーに接続し、その後は定義された定数トピックとペイロード生成関数を組み合わせて通信を行います。
 
 ```python
 from common import modt
 
-# 接続例
+# 接続と設定の例
 client = modt.get_mqtt_client("my-service")
 modt.connect_broker(client)
 
-# メッセージ送信例
+# データ保存リクエストの例
 payload = modt.create_state_set_payload("user-123", "theme", "dark")
 client.publish(modt.TOPIC_STATE_SET, payload)
+
+# データ削除リクエストの例
+del_payload = modt.create_state_delete_payload("user-123", "theme")
+client.publish(modt.TOPIC_STATE_DELETE, del_payload)

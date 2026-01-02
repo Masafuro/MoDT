@@ -1,0 +1,20 @@
+services:
+  db-app:
+    build: .
+    container_name: modt-db-unit
+    volumes:
+      - ../common:/app/common
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - MODT_BROKER_HOST=broker
+      - DATABASE_PATH=/app/data/modt_state.db
+    env_file:
+      - ../.env
+      - .env
+    networks:
+      - modt-network
+
+networks:
+  modt-network:
+    external: true

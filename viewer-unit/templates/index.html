@@ -10,20 +10,27 @@
         h1 { color: #202124; font-size: 1.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
         .info-box { background: #f1f3f4; padding: 0.8rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem; color: #5f6368; }
         
-        /* テーブルのスタイル */
         table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
         th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #e0e0e0; font-size: 0.9rem; }
         th { background-color: #f8f9fa; color: #70757a; font-weight: 600; }
         .key-cell { font-family: monospace; color: #1a73e8; font-weight: bold; }
         .no-data { text-align: center; color: #dadce0; padding: 2rem; }
 
-        /* フォームのスタイル */
-        .edit-form { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .edit-form { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 1rem; }
         .form-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 1rem; color: #3c4043; display: block; }
         .input-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
         .input-field { flex: 1; min-width: 120px; padding: 0.6rem; border: 1px solid #dadce0; border-radius: 4px; font-size: 0.9rem; }
+        
         .save-btn { background-color: #34a853; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .save-btn:hover { background-color: #2d9249; }
+
+        /* 削除ボタンのスタイル */
+        .del-btn { background-color: #f8f9fa; color: #d93025; border: 1px solid #dadce0; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .del-btn:hover { background-color: #fce8e6; border-color: #f19f97; }
+
+        .clear-area { text-align: right; margin-bottom: 1rem; }
+        .clear-btn { background: none; border: none; color: #70757a; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+        .clear-btn:hover { color: #d93025; }
 
         .back-link { display: inline-block; margin-top: 1.5rem; color: #1a73e8; text-decoration: none; font-size: 0.85rem; }
     </style>
@@ -42,6 +49,7 @@
                 <tr>
                     <th>設定キー</th>
                     <th>現在の値</th>
+                    <th style="width: 60px;">操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -50,11 +58,19 @@
                     <tr>
                         <td class="key-cell">{{ key }}</td>
                         <td>{{ val }}</td>
+                        <td>
+                            <form action="/delete-data" method="POST" style="margin:0;">
+                                <input type="hidden" name="session_id" value="{{ session_id }}">
+                                <input type="hidden" name="user_id" value="{{ user_id }}">
+                                <input type="hidden" name="key" value="{{ key }}">
+                                <button type="submit" class="del-btn">削除</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="2" class="no-data">登録されているデータはありません</td>
+                        <td colspan="3" class="no-data">登録されているデータはありません</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -66,10 +82,18 @@
                 <input type="hidden" name="session_id" value="{{ session_id }}">
                 <input type="hidden" name="user_id" value="{{ user_id }}">
                 <div class="input-group">
-                    <input type="text" name="new_key" placeholder="キー名 (例: lang)" class="input-field" required>
-                    <input type="text" name="new_value" placeholder="値 (例: ja)" class="input-field" required>
+                    <input type="text" name="new_key" placeholder="キー名" class="input-field" required>
+                    <input type="text" name="new_value" placeholder="値" class="input-field" required>
                     <button type="submit" class="save-btn">登録</button>
                 </div>
+            </form>
+        </div>
+
+        <div class="clear-area">
+            <form action="/clear-data" method="POST" onsubmit="return confirm('注意：このユーザーの全データが完全に削除されます。よろしいですか？');">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                <button type="submit" class="clear-btn">ユーザーの全データを消去</button>
             </form>
         </div>
 
