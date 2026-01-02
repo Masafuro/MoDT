@@ -1,18 +1,13 @@
-# 軽量なPythonイメージをベースに使用
 FROM python:3.11-slim
 
-# コンテナ内の作業ディレクトリを設定
 WORKDIR /app
 
-# 先に依存関係の定義ファイルをコピーしてインストール
+# 依存関係のインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# main.pyだけでなく、templatesフォルダを含む全てのファイルをコピー
+# ユニット固有のソースコードをコピー
 COPY . .
 
-# Flaskのデフォルトポートを公開用に指定
-EXPOSE 5000
-
-# アプリケーションの実行
+# Flaskアプリケーションの起動
 CMD ["python", "main.py"]

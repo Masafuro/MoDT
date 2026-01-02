@@ -1,7 +1,7 @@
 import time
 import os
 from flask import Flask, request, jsonify, render_template, redirect
-import modt
+from common import modt
 
 app = Flask(__name__)
 

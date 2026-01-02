@@ -1,0 +1,21 @@
+services:
+  viewer-app:
+    build: .
+    container_name: modt-viewer
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../common:/app/common
+      - ./templates:/app/templates
+    environment:
+      - PYTHONPATH=/app
+      - MODT_BROKER_HOST=broker
+    env_file:
+      - ../.env
+      - .env
+    networks:
+      - modt-network
+
+networks:
+  modt-network:
+    external: true
