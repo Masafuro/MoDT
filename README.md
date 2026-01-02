@@ -60,3 +60,68 @@ client.publish(modt.TOPIC_STATE_ALL_GET, payload)
 - ネットワーク: すべてのコンテナは modt-network 内で相互通信します。
 - ログ出力: Pythonユニットは PYTHONUNBUFFERED=1 を設定し、リアルタイムなログ取得を保証します。
 - 共有ライブラリ: ./common ディレクトリを各コンテナにマウントし、PYTHONPATH を通して modt.py を利用可能にします。
+
+## 各ユニットの個別開発ガイド
+
+MoDT（Modular Docker through MQTT）システムでは、全体の整合性を維持しながら、特定のユニットを独立させて開発・検証することが可能です。このモジュール化された開発手法を採用することで、開発者は担当する機能に集中し、迅速なビルドとテストのサイクルを回すことができます。
+
+### 開発フローと実行コマンド
+
+個別のユニットを開発する際は、まずシステム全体の通信路となる共有ネットワークとブローカーを確立する必要があります。以下のコマンドを実行して、基盤となるインフラをバックグラウンドで起動してください。
+
+> cd broker
+> docker-compose up -d
+
+次に、開発対象のユニットディレクトリへ移動します。ユニットを起動する際は、ソースコードの変更を確実に反映させるためにビルドを伴う起動コマンドを推奨します。以下のコマンドを実行することで、コンテナが立ち上がり、自動的に共有ネットワークへ合流します。
+
+> docker-compose up --build
+
+開発が一段落し、特定のユニットのみを停止してリソースを解放したい場合は、そのユニットのディレクトリで以下のコマンドを実行してください。
+
+> docker-compose down
+
+各ユニットのディレクトリに配置する構成ファイルは、親ディレクトリに存在する共通資産を正しく取得しつつ、独立性を保つための特定の記述ルールに従います。具体的には、networksセクションにおいて modt-network を external: true として定義し、自前でネットワークを作成せずに既存の広場を利用するように設定します。また、共通SDKである modt.py を利用するために、ボリュームマウントを使用して ../common をコンテナ内の /app/common に割り当てます。これと同時に環境変数 PYTHONPATH を /app に設定することで、プログラム内のインポート文が正しく機能するように調整します。環境変数ファイルについては、ルートディレクトリの .env とユニット固有の .env の両方を読み込むよう指定し、システム全体の定数とユニット固有の設定を共存させます。標準的な設定のテンプレートは以下の通りです。
+
+```yaml
+services:
+  unit-app:
+    build: .
+    container_name: modt-unit-name
+    volumes:
+      - ../common:/app/common
+    environment:
+      - PYTHONPATH=/app
+      - MODT_BROKER_HOST=broker
+    env_file:
+      - ../.env
+      - .env
+    networks:
+      - modt-network
+
+networks:
+  modt-network:
+    external: true
+```
+
+### ユニット用 Dockerfile の標準仕様
+
+各ユニットのビルド定義は、実行環境を最小限に保つために python:3.11-slim などの軽量なイメージをベースに使用します。Dockerfile内部では、そのユニットの動作に直接関係のないミドルウェアのインストールは行わず、純粋なPython実行環境の構築に専念します。
+
+ビルド手順としては、まず requirements.txt をコピーして依存ライブラリをインストールし、その後にユニット内のソースコードをコピーします。共通SDKの実体は開発時にDocker Composeによって注入されるため、Dockerfile内で親ディレクトリを参照しようとする記述は避ける必要があります。最後に、アプリケーションの起動はシェルスクリプトを介さず直接 python main.py を実行する形式をとり、OSからのシグナルを正しく受け取れるように構成します。
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 依存関係のインストール
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ユニット固有のソースコードをコピー
+COPY . .
+
+# アプリケーションの直接起動
+CMD ["python", "main.py"]
+
+```
