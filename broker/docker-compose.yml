@@ -1,0 +1,18 @@
+services:
+  broker:
+    image: eclipse-mosquitto:latest
+    container_name: modt-broker
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./data:/mosquitto/data
+      - ./log:/mosquitto/log
+    networks:
+      modt-network:
+        aliases:
+          - broker
+
+networks:
+  modt-network:
+    name: modt-network

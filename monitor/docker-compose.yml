@@ -1,0 +1,17 @@
+services:
+  monitor-app:
+    build: .
+    container_name: modt-monitor
+    volumes:
+      - ../common:/app/common
+    environment:
+      - PYTHONPATH=/app
+      - MODT_BROKER_HOST=broker
+    env_file:
+      - ../.env
+    networks:
+      - modt-network
+
+networks:
+  modt-network:
+    external: true

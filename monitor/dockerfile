@@ -1,8 +1,14 @@
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
+
+# 不要なredis-serverのインストールを削除し、最小限のパッケージ構成にします
 WORKDIR /app
+
+# 依存関係のインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# ソースコードのコピー
 COPY . .
-RUN chmod +x entrypoint.sh
-CMD ["./entrypoint.sh"]
+
+# entrypoint.shを介さず、直接Pythonを実行することでシグナル処理を安定させます
+CMD ["python", "main.py"]
